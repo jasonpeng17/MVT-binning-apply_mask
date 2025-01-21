@@ -20,6 +20,15 @@ plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
+def inverse(array):
+    """
+    Calculate and return the inverse of the input array, enforcing
+    positivity and setting values <= 0 to zero.  The input array should
+    be a quantity expected to always be positive, like a variance or an
+    inverse variance. 
+    """
+    return (array > 0.0) / (np.abs(array) + (array == 0.0))
+
 def reverseassign(map):
     m=int(np.nanmax(map))+1
     
@@ -114,7 +123,8 @@ def calculate_SN(binn,sigmap,varmap):
     for tupple in binn:
         numerator=numerator+sigmap[tupple[0]][tupple[1]]
         denominator=denominator+varmap[tupple[0]][tupple[1]]
-    SN=numerator/np.sqrt(denominator)
+    # SN=numerator/np.sqrt(denominator)
+    SN=numerator * inverse(np.sqrt(denominator))
     return SN
 
 def calculate_cvt(binlist,signal,var):

@@ -10,6 +10,8 @@ from scipy import ndimage
 import time, os
 from collections import Counter
 
+from IPython import embed
+
 
 SMALL_SIZE=14
 MEDIUM_SIZE=16
@@ -136,7 +138,7 @@ def blockout(target,wvt,ston,fpath,check=1):
     weighting=ndimage.convolve(ston,np.ones((10,10)),mode='reflect') ##reflect to avoid edge effects
     ybin=[]
     option=2
-    negaoption=True
+    negaoption=False
     for y in range(len(ston)):
         for x in range(len(ston[y])):
             ybin.append(ston[y][x])
@@ -412,11 +414,15 @@ if __name__ == "__main__":
                     test=np.zeros_like(signal)
                     test[signal<=0]=1
                     incidence=np.average(test) # this is the "percentage of masked pixels"
+
+                    # handle the edge pixels with zero or nan values
+                    mask=np.full_like(signal,1)
+                    mask[(signal==0) | np.isnan(signal)] = 0 
                     
                     ## this is the most important function
                     ## first we do bin accretion. then iteration. the wvt and vwvt is not necessary here but im scared to remove it
-                    binlist,init_generators,init_scalelengths=bin_accretion.cc_accretion(signal2,var2,target,minsize=minsize,mode=modetype,display=False)
-                    binlist,diflist=wvt_iteration.iteration_moderator(target,signal2,var2,init_generators,init_scalelengths,eps,minsize,incidence,mode=modetype,display=False)
+                    binlist,init_generators,init_scalelengths=bin_accretion.cc_accretion(signal2,var2,target,minsize=minsize,mode=modetype,mask=mask,display=False)
+                    binlist,diflist=wvt_iteration.iteration_moderator(target,signal2,var2,init_generators,init_scalelengths,eps,minsize,incidence,mode=modetype,mask=mask,display=False)
 
                     ## now to generate the binned signal and variance
                     wvt,ston=functions.generate_wvt3(binlist,signal,var,np.full(len(binlist),1))

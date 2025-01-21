@@ -9,6 +9,8 @@ from astropy import wcs
 import os
 import functions,wvt_iteration
 
+from IPython import embed
+
 def gettarget(initial=0):
     ## for getting the target StoN from user
     application_window = tk.Tk()
@@ -318,7 +320,8 @@ def cc_accretion(signal,var,target,minsize,mode,mask=None,display=False):
         mask=np.full_like(signal,1)
 
     ## this is the signal-to-noise for each pixel
-    ston=signal*mask/np.sqrt(np.abs(var))
+    # ston=signal*mask/np.sqrt(np.abs(var))
+    ston = signal * mask * functions.inverse(np.sqrt(np.abs(var)))
     ## to prevent situations where 0/0=nan by making any place where sig=0, ston=0.
     ston=np.where(np.equal(signal,np.zeros_like(signal)),signal,ston)
     var[signal<=0]=0

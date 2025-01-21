@@ -4,15 +4,18 @@ from astropy.io import fits
 import functions
 import scipy.spatial as sp
 
-def iteration_moderator(target,signal,var,geocarray,scalearray,epsilon,minsize,incidence,mode,display=False):
+from IPython import embed
+
+def iteration_moderator(target,signal,var,geocarray,scalearray,epsilon,minsize,incidence,mode,mask=None,display=False):
     if mode=="WVT2s":
         ## WVT2s requires different iteration behavior
         ## we form bins as usual
         ## then pass through one regularization to smooth bin edges
-        mask=np.full_like(signal,1)
+        if mask is None:
+            mask=np.full_like(signal,1)
         binlist,init_generators,init_scalelengths=next_iteration(target,signal,var,geocarray,scalearray,"VT",mask)
         ## now we save the internal bins that do not need iteration
-        mask,savebins,savegeoc,othergenerators,otherscalelengths=maskbins(binlist,minsize,incidence,signal,var,target,init_generators)
+        mask,savebins,savegeoc,othergenerators,otherscalelengths=maskbins(binlist,minsize,incidence,signal,var,target,init_generators,mask=mask)
         if np.sum(mask)==0:
             ## there is no outside bins so we just return internal bins
             print("No outside bins formed. Inside bins left uniterated.")
@@ -23,9 +26,9 @@ def iteration_moderator(target,signal,var,geocarray,scalearray,epsilon,minsize,i
         binlist=savebins+otherbinlist
         return binlist,diflist
     elif mode=="VT":
-        return iteration_func(target,signal,var,geocarray,scalearray,-1,mode,display)
+        return iteration_func(target,signal,var,geocarray,scalearray,-1,mode,display,mask=mask)
     else:
-        return iteration_func(target,signal,var,geocarray,scalearray,epsilon,mode,display)
+        return iteration_func(target,signal,var,geocarray,scalearray,epsilon,mode,display,mask=mask)
 
 def iteration_func(target,signal,var,geocarray,scalearray,epsilon,mode,display=False,mask=None):
     wvt=np.copy(signal)
@@ -61,10 +64,12 @@ def iteration_func(target,signal,var,geocarray,scalearray,epsilon,mode,display=F
 
     return binlist,diflist
 
-def next_iteration(target,signal,var,geocarray,scalearray,mode,mask):
+def next_iteration(target,signal,var,geocarray,scalearray,mode,mask=None):
     ## generate all of the pixels to be slotted into a bin determined by the generators
     
-    unmask=np.full_like(mask,1)
+    # unmask=np.full_like(mask,1)
+    if mask is None:
+        mask=np.full_like(signal,1)
 
     assign=np.full_like(signal,-1,dtype=int)
     viable=[]
@@ -78,10 +83,10 @@ def next_iteration(target,signal,var,geocarray,scalearray,mode,mask):
             print(g)
             raise NameError("ouchie!")
         viable.append([])
-        append_validate((point[0]+1,point[1]),viable[g],unmask)
-        append_validate((point[0]-1,point[1]),viable[g],unmask)
-        append_validate((point[0],point[1]+1),viable[g],unmask)
-        append_validate((point[0],point[1]-1),viable[g],unmask)
+        append_validate((point[0]+1,point[1]),viable[g],mask)
+        append_validate((point[0]-1,point[1]),viable[g],mask)
+        append_validate((point[0],point[1]+1),viable[g],mask)
+        append_validate((point[0],point[1]-1),viable[g],mask)
         #print(str(int(g*100/len(geocarray)))+" percent done with init pass")
     while checkneg(assign*mask) or viabunempty(viable):
         for g in range(len(geocarray)):
@@ -95,17 +100,17 @@ def next_iteration(target,signal,var,geocarray,scalearray,mode,mask):
             if len(viable[g])>0:
                 if assign[point[0]][point[1]]==-1:
                     assign[point[0]][point[1]]=g
-                    append_validate((point[0]+1,point[1]),viable[g],unmask)
-                    append_validate((point[0]-1,point[1]),viable[g],unmask)
-                    append_validate((point[0],point[1]+1),viable[g],unmask)
-                    append_validate((point[0],point[1]-1),viable[g],unmask)
+                    append_validate((point[0]+1,point[1]),viable[g],mask)
+                    append_validate((point[0]-1,point[1]),viable[g],mask)
+                    append_validate((point[0],point[1]+1),viable[g],mask)
+                    append_validate((point[0],point[1]-1),viable[g],mask)
                 else:
                     if ((geocarray[g][0]-point[0])**2+(geocarray[g][1]-point[1])**2)/(scalearray[g]**2)<((geocarray[assign[point[0]][point[1]]][0]-point[0])**2+(geocarray[assign[point[0]][point[1]]][1]-point[1])**2)/(scalearray[assign[point[0]][point[1]]]**2):
                         assign[point[0]][point[1]]=g
-                        append_validate((point[0]+1,point[1]),viable[g],unmask)
-                        append_validate((point[0]-1,point[1]),viable[g],unmask)
-                        append_validate((point[0],point[1]+1),viable[g],unmask)
-                        append_validate((point[0],point[1]-1),viable[g],unmask)
+                        append_validate((point[0]+1,point[1]),viable[g],mask)
+                        append_validate((point[0]-1,point[1]),viable[g],mask)
+                        append_validate((point[0],point[1]+1),viable[g],mask)
+                        append_validate((point[0],point[1]-1),viable[g],mask)
                     else:
                         pass
     binlist=[ [] for _ in range(len(geocarray)) ]
@@ -148,7 +153,7 @@ def append_validate(candidate,target,check):
     except:
         pass
 
-def maskbins(binlist,minsize,incidence,sig,var,target,geoc):
+def maskbins(binlist,minsize,incidence,sig,var,target,geoc,mask=None):
     ## for use in the WVT 2 stage method. Makes every bin less than cutpff outisde bin, which are iterated
     ## every bin greater than cutpff inside bin, which are not iterated
     init_SN=np.array([functions.calculate_SN(binlist[i],sig,var) for i in range(len(binlist))])
@@ -158,7 +163,8 @@ def maskbins(binlist,minsize,incidence,sig,var,target,geoc):
     ## density. above this, we generally would assume that there arent many negative pixels dragging down
     cutpff=1*target/minsize
     print(cutpff)
-    mask=np.full_like(sig,1)
+    if mask is None:
+        mask=np.full_like(sig,1)
     savebins=[]
     savegeoc=[]
 
